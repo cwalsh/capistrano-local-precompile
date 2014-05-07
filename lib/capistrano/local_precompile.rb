@@ -12,7 +12,6 @@ module Capistrano
 
         set(:turbosprockets_enabled)    { false }
         set(:turbosprockets_backup_dir) { "public/.assets" }
-        set(:rsync_cmd)                 { "rsync -av" }
 
         before "deploy:assets:precompile", "deploy:assets:prepare"
         after "deploy:assets:precompile", "deploy:assets:cleanup"
@@ -38,16 +37,14 @@ module Capistrano
             end
 
             desc "Precompile assets locally and then rsync to app servers"
-            task :precompile, :only => { :primary => true }, :on_no_matching_servers => :continue do
+            task :precompile, :on_no_matching_servers => :continue do
 
               local_manifest_path = run_locally "ls #{assets_dir}/manifest*"
               local_manifest_path.strip!
-
-              servers = find_servers :roles => assets_role, :except => { :no_release => true }
-              servers.each do |srvr|
-                run_locally "#{fetch(:rsync_cmd)} ./#{fetch(:assets_dir)}/ #{user}@#{srvr}:#{release_path}/#{fetch(:assets_dir)}/"
-                run_locally "#{fetch(:rsync_cmd)} ./#{local_manifest_path} #{user}@#{srvr}:#{release_path}/assets_manifest#{File.extname(local_manifest_path)}"
-              end
+              copy_options = {:only => { assets_role => true }, :except => { :no_release => true },
+                :recursive => true, via: :scp}
+              top.upload "./#{fetch(:assets_dir)}/", "#{release_path}/#{fetch(:assets_dir)}/", copy_options
+              top.upload "./#{local_manifest_path}", "#{release_path}/assets_manifest#{File.extname(local_manifest_path)}", copy_options
             end
           end
         end
